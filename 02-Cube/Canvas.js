@@ -27,8 +27,7 @@ var perspectiveProjectionMatrix;
 
 var cangle = 0.0;
 
-// main function
-function main() {
+async function main() {
   // get Canvas
   canvas = document.getElementById("ssm");
   if (canvas == null) {
@@ -49,7 +48,7 @@ function main() {
 
   window.addEventListener("resize", resize, false);
 
-  initialize();
+  await initialize();
   resize();
   display();
 }
@@ -105,7 +104,12 @@ function toggleFullScreen() {
   }
 }
 
-function initialize() {
+async function loadShaderFile(url) {
+  const response = await fetch(url);
+  return await response.text();
+}
+
+async function initialize() {
   // code
   // get context from canvas
   gl = canvas.getContext("webgl2");
@@ -119,153 +123,140 @@ function initialize() {
   gl.viewportWidth = canvas.width;
   gl.viewportHeight = canvas.height;
 
-  // vertex shader
-  var vertexShaderSourceCode =
-    `#version 300 es
-    in vec4 aPosition;
-    in vec4 aColor;
-    out vec4 oColor;
-    uniform mat4 uMVPMatrix;
-    void main() {
-      gl_Position = uMVPMatrix * aPosition;
-      oColor = aColor;
-    }`;
+  try {
+    const vertexShaderSourceCode = await loadShaderFile("vertexShader.glsl");
+    const fragmentShaderSourceCode = await loadShaderFile(
+      "fragmentShader.glsl"
+    );
 
-  var vertexShaderObject = gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vertexShaderObject, vertexShaderSourceCode);
-  gl.compileShader(vertexShaderObject);
+    var vertexShaderObject = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShaderObject, vertexShaderSourceCode);
+    gl.compileShader(vertexShaderObject);
 
-  if (!gl.getShaderParameter(vertexShaderObject, gl.COMPILE_STATUS)) {
-    var error = gl.getShaderInfoLog(vertexShaderObject);
-    console.log("Vertex Shader Compilation error : " + error);
-    uninitialize();
-  } else {
-    console.log("vertex Shader Compiled Successfully");
+    if (!gl.getShaderParameter(vertexShaderObject, gl.COMPILE_STATUS)) {
+      var error = gl.getShaderInfoLog(vertexShaderObject);
+      console.log("Vertex Shader Compilation error : " + error);
+      uninitialize();
+    } else {
+      console.log("vertex Shader Compiled Successfully");
+    }
+
+    var fragmentShaderObject = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShaderObject, fragmentShaderSourceCode);
+    gl.compileShader(fragmentShaderObject);
+
+    if (!gl.getShaderParameter(fragmentShaderObject, gl.COMPILE_STATUS)) {
+      var error = gl.getShaderInfoLog(fragmentShaderObject);
+      console.log("Fragment Shader Compilation error : " + error);
+      uninitialize();
+    } else {
+      console.log("Fragment Shader Compiled Successfully");
+    }
+
+    // Shader Program
+    ShaderProgramObject = gl.createProgram();
+    gl.attachShader(ShaderProgramObject, vertexShaderObject);
+    gl.attachShader(ShaderProgramObject, fragmentShaderObject);
+    gl.bindAttribLocation(
+      ShaderProgramObject,
+      VertexAttributeEnum.AMC_ATTRIBUTE_POSITION,
+      "aPosition"
+    );
+    gl.bindAttribLocation(
+      ShaderProgramObject,
+      VertexAttributeEnum.AMC_ATTRIBUTE_COLOR,
+      "aColor"
+    );
+    gl.linkProgram(ShaderProgramObject);
+
+    if (!gl.getProgramParameter(ShaderProgramObject, gl.LINK_STATUS)) {
+      var error = gl.getProgramInfoLog(ShaderProgramObject);
+      console.log("Shader Linking error : " + error);
+      uninitialize();
+    } else {
+      console.log("Shader Linked Successfully");
+    }
+
+    mvpMatrixUniform = gl.getUniformLocation(ShaderProgramObject, "uMVPMatrix");
+
+    // Geometry attribute
+    var cubePosition = new Float32Array([
+      // front
+      1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0,
+      // right
+      1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0,
+      // back
+      1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0,
+      // left
+      -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0,
+      // top
+      1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+      // bottom
+      1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0,
+    ]);
+
+    var cubeColor = new Float32Array([
+      // front
+      1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+      // right
+      0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
+      // back
+      0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+      // left
+      1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.1, 0.0,
+      // top
+      1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+      // bottom
+      0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0,
+    ]);
+
+    // VAO for Cube
+    vao_Cube = gl.createVertexArray();
+    gl.bindVertexArray(vao_Cube);
+
+    // VBO for Cube Position
+    vbo_CubePosition = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo_CubePosition);
+    gl.bufferData(gl.ARRAY_BUFFER, cubePosition, gl.STATIC_DRAW);
+    gl.vertexAttribPointer(
+      VertexAttributeEnum.AMC_ATTRIBUTE_POSITION,
+      3,
+      gl.FLOAT,
+      false,
+      0,
+      0
+    );
+    gl.enableVertexAttribArray(VertexAttributeEnum.AMC_ATTRIBUTE_POSITION);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    // VBO for Cube Color
+    vbo_CubeColor = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo_CubeColor);
+    gl.bufferData(gl.ARRAY_BUFFER, cubeColor, gl.STATIC_DRAW);
+    gl.vertexAttribPointer(
+      VertexAttributeEnum.AMC_ATTRIBUTE_COLOR,
+      3,
+      gl.FLOAT,
+      false,
+      0,
+      0
+    );
+    gl.enableVertexAttribArray(VertexAttributeEnum.AMC_ATTRIBUTE_COLOR);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    gl.bindVertexArray(null);
+
+    gl.clearDepth(1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+    perspectiveProjectionMatrix = mat4.create();
+  } catch (error) {
+    console.log("Error loading shaders: " + error);
   }
-
-  var fragmentShaderSourceCode =
-    `#version 300 es
-    precision highp float;
-    in vec4 oColor;
-    out vec4 FragColor;
-    void main() {
-      FragColor = oColor;
-    }`;
-
-  var fragmentShaderObject = gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fragmentShaderObject, fragmentShaderSourceCode);
-  gl.compileShader(fragmentShaderObject);
-
-  if (!gl.getShaderParameter(fragmentShaderObject, gl.COMPILE_STATUS)) {
-    var error = gl.getShaderInfoLog(fragmentShaderObject);
-    console.log("Fragment Shader Compilation error : " + error);
-    uninitialize();
-  } else {
-    console.log("Fragment Shader Compiled Successfully");
-  }
-
-  // Shader Program
-  ShaderProgramObject = gl.createProgram();
-  gl.attachShader(ShaderProgramObject, vertexShaderObject);
-  gl.attachShader(ShaderProgramObject, fragmentShaderObject);
-  gl.bindAttribLocation(
-    ShaderProgramObject,
-    VertexAttributeEnum.AMC_ATTRIBUTE_POSITION,
-    "aPosition"
-  );
-  gl.bindAttribLocation(
-    ShaderProgramObject,
-    VertexAttributeEnum.AMC_ATTRIBUTE_COLOR,
-    "aColor"
-  );
-  gl.linkProgram(ShaderProgramObject);
-
-  if (!gl.getProgramParameter(ShaderProgramObject, gl.LINK_STATUS)) {
-    var error = gl.getProgramInfoLog(ShaderProgramObject);
-    console.log("Shader Linking error : " + error);
-    uninitialize();
-  } else {
-    console.log("Shader Linked Successfully");
-  }
-
-  mvpMatrixUniform = gl.getUniformLocation(ShaderProgramObject, "uMVPMatrix");
-
-  // Geometry attribute
-  var cubePosition = new Float32Array([
-    // front
-    1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0,
-    // right
-    1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0,
-    // back
-    1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0,
-    // left
-    -1.0, 1.0, 1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0,
-    // top
-    1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-    // bottom
-    1.0, -1.0, 1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0
-  ]);
-
-  var cubeColor = new Float32Array([
-    // front
-    1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-    // right
-    0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0,
-    // back
-    0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
-    // left
-    1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0,
-    // top
-    1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0,
-    // bottom
-    0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 1.0
-  ]);
-
-  // VAO for Cube
-  vao_Cube = gl.createVertexArray();
-  gl.bindVertexArray(vao_Cube);
-
-  // VBO for Cube Position
-  vbo_CubePosition = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo_CubePosition);
-  gl.bufferData(gl.ARRAY_BUFFER, cubePosition, gl.STATIC_DRAW);
-  gl.vertexAttribPointer(
-    VertexAttributeEnum.AMC_ATTRIBUTE_POSITION,
-    3,
-    gl.FLOAT,
-    false,
-    0,
-    0
-  );
-  gl.enableVertexAttribArray(VertexAttributeEnum.AMC_ATTRIBUTE_POSITION);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-  // VBO for Cube Color
-  vbo_CubeColor = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo_CubeColor);
-  gl.bufferData(gl.ARRAY_BUFFER, cubeColor, gl.STATIC_DRAW);
-  gl.vertexAttribPointer(
-    VertexAttributeEnum.AMC_ATTRIBUTE_COLOR,
-    3,
-    gl.FLOAT,
-    false,
-    0,
-    0
-  );
-  gl.enableVertexAttribArray(VertexAttributeEnum.AMC_ATTRIBUTE_COLOR);
-  gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-  gl.bindVertexArray(null); 
-
-  gl.clearDepth(1.0);
-  gl.enable(gl.DEPTH_TEST);
-  gl.depthFunc(gl.LEQUAL);
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  perspectiveProjectionMatrix = mat4.create();
 }
 
 function resize() {
-
   if (canvas.height == 0) canvas.height = 1;
 
   if (bFullScreen == true) {
@@ -315,7 +306,7 @@ function display() {
   gl.drawArrays(gl.TRIANGLE_FAN, 16, 4);
   gl.drawArrays(gl.TRIANGLE_FAN, 20, 4);
   gl.bindVertexArray(null);
-  
+
   gl.useProgram(null);
 
   update();
@@ -344,7 +335,7 @@ function uninitialize() {
   if (vbo_CubeColor) {
     gl.deleteBuffer(vbo_CubeColor);
     vbo_CubeColor = null;
-  } 
+  }
   if (ShaderProgramObject) {
     gl.useProgram(ShaderProgramObject);
     var shaderObjects = gl.getAttachedShaders(ShaderProgramObject);
@@ -360,6 +351,4 @@ function uninitialize() {
     gl.deleteProgram(ShaderProgramObject);
     ShaderProgramObject = null;
   }
-
 }
-
