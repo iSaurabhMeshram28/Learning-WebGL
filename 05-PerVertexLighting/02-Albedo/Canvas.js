@@ -121,7 +121,12 @@ function toggleFullScreen() {
   }
 }
 
-function initialize() {
+async function loadShaderFile(url) {
+  const response = await fetch(url);
+  return await response.text();
+}
+
+async function initialize() {
   gl = canvas.getContext("webgl2");
   if (gl == null) {
     console.log("Getting WebGL2 context Failed\n");
@@ -130,123 +135,67 @@ function initialize() {
     console.log("Getting WebGL2 context Succeeded");
   }
 
-  var vertexShaderSourceCode = `#version 300 es
-    precision highp float;
-    precision highp int;
-   in vec4 aPosition; 
-        in vec3 aNormal; 
-        in vec4 aColor; 
-        out vec4 oColor; 
-        uniform mat4 uModelMatrix; 
-        uniform mat4 uViewMatrix; 
-        uniform mat4 uProjectionViewMatrix; 
-        uniform vec3 uLightAmbient; 
-        uniform vec3 uLightDiffuse; 
-        uniform vec3 uLightSpecular; 
-        uniform vec4 uLightPosition; 
-        uniform vec3 uMaterialAmbient; 
-        uniform vec3 uMaterialDiffuse; 
-        uniform vec3 uMaterialSpecular; 
-        uniform float uMaterialShininess; 
-        uniform int ukeypressed; 
-        out vec3 oPhong_ADS_Light; 
-        void main() 
-        { 
-        if(ukeypressed == 1) 
-        { 
-        vec4 iCoordinates = uViewMatrix * uModelMatrix * aPosition; 
-        vec3 transformedNormals = normalize(mat3(uViewMatrix * uModelMatrix) * aNormal); 
-        vec3 lightDirection = normalize(vec3(uLightPosition - iCoordinates)); 
-        vec3 reflectionVector = reflect(-lightDirection, transformedNormals); 
-        vec3 viewerVector = normalize(-iCoordinates.xyz); 
-        vec3 ambientLight = uLightAmbient * uMaterialAmbient; 
-        vec3 DiffusedLight = uLightDiffuse * uMaterialDiffuse * max(dot(lightDirection, transformedNormals), 0.0); 
-        vec3 specularLight = uLightSpecular * uMaterialSpecular * pow(max(dot(reflectionVector, viewerVector), 0.0), uMaterialShininess); 
-        oPhong_ADS_Light = ambientLight + DiffusedLight + specularLight; 
-        } 
-        else 
-        { 
-        oPhong_ADS_Light = vec3(0.0, 0.0, 0.0); 
-        } 
-        gl_Position = uProjectionViewMatrix * uViewMatrix * uModelMatrix * aPosition; 
-        }`;
+  sphere = new Mesh();
+  makeSphere(sphere, 1.0, 30, 30);
+  perspectiveProjectionMatrix = mat4.identity(mat4.create());
 
-  var vertexShaderObject = gl.createShader(gl.VERTEX_SHADER);
-  gl.shaderSource(vertexShaderObject, vertexShaderSourceCode);
-  gl.compileShader(vertexShaderObject);
+  try {
+    const vertexShaderSourceCode = await loadShaderFile("vertexShader.glsl");
+    const fragmentShaderSourceCode = await loadShaderFile(
+      "fragmentShader.glsl"
+    );
 
-  if (!gl.getShaderParameter(vertexShaderObject, gl.COMPILE_STATUS)) {
-    var error = gl.getShaderInfoLog(vertexShaderObject);
-    if (error.length > 0) {
+    var vertexShaderObject = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShaderObject, vertexShaderSourceCode);
+    gl.compileShader(vertexShaderObject);
+
+    if (!gl.getShaderParameter(vertexShaderObject, gl.COMPILE_STATUS)) {
+      var error = gl.getShaderInfoLog(vertexShaderObject);
       console.log("Vertex Shader Compilation Error: " + error);
       uninitialize();
       return;
+    } else {
+      console.log("Vertex Shader Compiled Successfully");
     }
-  } else {
-    console.log("Vertex Shader Compiled Successfully");
-  }
 
-  var fragmentShaderSourceCode = `#version 300 es
-    precision highp float;
-    precision highp int;
-    in vec4 oColor; 
-        in vec3 oPhong_ADS_Light; 
-        uniform int ukeypressed; 
-        out vec4 FragColor; 
-        void main() 
-        { 
-        if(ukeypressed == 1) 
-        { 
-        FragColor = vec4(oPhong_ADS_Light, 1.0); 
-        } 
-        else 
-        { 
-        FragColor = vec4(1.0, 1.0, 1.0, 1.0); 
-        } 
-        }`;
+    var fragmentShaderObject = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShaderObject, fragmentShaderSourceCode);
+    gl.compileShader(fragmentShaderObject);
 
-  var fragmentShaderObject = gl.createShader(gl.FRAGMENT_SHADER);
-  gl.shaderSource(fragmentShaderObject, fragmentShaderSourceCode);
-  gl.compileShader(fragmentShaderObject);
-
-  if (!gl.getShaderParameter(fragmentShaderObject, gl.COMPILE_STATUS)) {
-    var error = gl.getShaderInfoLog(fragmentShaderObject);
-    if (error.length > 0) {
+    if (!gl.getShaderParameter(fragmentShaderObject, gl.COMPILE_STATUS)) {
+      var error = gl.getShaderInfoLog(fragmentShaderObject);
       console.log("Fragment Shader Compilation Error: " + error);
       uninitialize();
       return;
+    } else {
+      console.log("Fragment Shader Compiled Successfully");
     }
-  } else {
-    console.log("Fragment Shader Compiled Successfully");
-  }
 
-  ShaderProgramObject = gl.createProgram();
-  gl.attachShader(ShaderProgramObject, vertexShaderObject);
-  gl.attachShader(ShaderProgramObject, fragmentShaderObject);
-  gl.bindAttribLocation(
-    ShaderProgramObject,
-    VertexAttributeEnum.AMC_ATTRIBUTE_POSITION,
-    "aPosition"
-  );
-  gl.bindAttribLocation(
-    ShaderProgramObject,
-    VertexAttributeEnum.AMC_ATTRIBUTE_NORMAL,
-    "aNormal"
-  );
-  gl.linkProgram(ShaderProgramObject);
+    ShaderProgramObject = gl.createProgram();
+    gl.attachShader(ShaderProgramObject, vertexShaderObject);
+    gl.attachShader(ShaderProgramObject, fragmentShaderObject);
+    gl.bindAttribLocation(
+      ShaderProgramObject,
+      VertexAttributeEnum.AMC_ATTRIBUTE_POSITION,
+      "aPosition"
+    );
+    gl.bindAttribLocation(
+      ShaderProgramObject,
+      VertexAttributeEnum.AMC_ATTRIBUTE_NORMAL,
+      "aNormal"
+    );
+    gl.linkProgram(ShaderProgramObject);
 
-  if (!gl.getProgramParameter(ShaderProgramObject, gl.LINK_STATUS)) {
-    var error = gl.getProgramInfoLog(ShaderProgramObject);
-    if (error.length > 0) {
+    if (!gl.getProgramParameter(ShaderProgramObject, gl.LINK_STATUS)) {
+      var error = gl.getProgramInfoLog(ShaderProgramObject);
       console.log("Shader Linking Error: " + error);
       uninitialize();
       return;
+    } else {
+      console.log("Shader Linked Successfully");
     }
-  } else {
-    console.log("Shader Linked Successfully");
-  }
 
-  modelMatrixUniform = gl.getUniformLocation(
+   modelMatrixUniform = gl.getUniformLocation(
     ShaderProgramObject,
     "uModelMatrix"
   );
@@ -290,16 +239,14 @@ function initialize() {
 
   keyPressedUniform = gl.getUniformLocation(ShaderProgramObject, "ukeypressed");
 
-  sphere = new Mesh();
-  makeSphere(sphere, 1.0, 30, 30);
+    gl.clearDepth(1.0);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthFunc(gl.LEQUAL);
 
-  gl.clearDepth(1.0);
-  gl.enable(gl.DEPTH_TEST);
-  gl.depthFunc(gl.LEQUAL);
-
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
-  perspectiveProjectionMatrix = mat4.create();
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  } catch (error) {
+    console.log("Error loading shaders: " + error);
+  }
 }
 
 function resize() {
