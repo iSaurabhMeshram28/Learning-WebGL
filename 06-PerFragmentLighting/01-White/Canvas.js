@@ -16,7 +16,7 @@ const VertexAttributeEnum = {
   AMC_ATTRIBUTE_POSITION: 0,
   AMC_ATTRIBUTE_NORMAL: 1,
   AMC_ATTRIBUTE_COLOR: 2,
-  AMC_ATTRIBUTE_TEXCOORD: 3,
+  AMC_ATTRIBUTE_TEXCOORD: 3
 };
 
 var ShaderProgramObject = null;
