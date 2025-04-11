@@ -20,12 +20,15 @@ var ShaderProgramObject = null;
 
 var vao_Cube = null;
 var vbo_CubePosition = null;
+
 var vbo_CubeColor = null;
 
 var mvpMatrixUniform;
 var perspectiveProjectionMatrix;
 
 var cangle = 0.0;
+
+var is_mouse_pressed = false;
 
 async function main() {
   // get Canvas
@@ -44,7 +47,10 @@ async function main() {
   window.addEventListener("keydown", keyDown, false);
 
   // register for mouse events
-  window.addEventListener("click", mouseDown, false);
+  canvas.addEventListener("mousedown", onMouseDown);
+  canvas.addEventListener("mouseup", onMouseUp);
+  canvas.addEventListener("mouseout", onMouseOut);
+  canvas.addEventListener("mousemove", onMouseMove);
 
   window.addEventListener("resize", resize, false);
 
@@ -56,6 +62,22 @@ async function main() {
 function keyDown(event) {
   // code
   switch (event.keyCode) {
+    case 65: // A key (move left)
+    case 97: // a key (move left)
+      MoveCameraLeft(0.5); // Adjust sensitivity as needed
+      break;
+    case 68: // D key (move right)
+    case 100: // d key (move right)
+      MoveCameraRight(0.5);
+      break;
+    case 87: // W key (move forward)
+    case 119: // w key (move forward)
+      MoveCameraFront(0.5);
+      break;
+    case 83: // S key (move back)
+    case 115: // s key (move back)
+      MoveCameraBack(0.5);
+      break;
     case 81: // Q key
     case 113: // q key
       uninitialize();
@@ -68,7 +90,26 @@ function keyDown(event) {
   }
 }
 
-function mouseDown() {}
+function onMouseDown(e) {
+  //code
+  last_x = e.pageX;
+  last_y = e.pageY;
+  is_mouse_pressed = true;
+}
+
+function onMouseUp() {
+  is_mouse_pressed = false;
+}
+
+function onMouseOut() {
+  is_mouse_pressed = false;
+}
+
+function onMouseMove(e) {
+  if (is_mouse_pressed) {
+    UpdateCameraXY(e.pageX, e.pageY);
+  }
+}
 
 function toggleFullScreen() {
   var fullScreen_Element =
@@ -118,6 +159,8 @@ async function initialize() {
   } else {
     console.log("Getting WebGL2 context Succeeded");
   }
+
+  InitializeCamera();
 
   // set WebGL2 context's viewWidth and viewHeight properties
   gl.viewportWidth = canvas.width;
@@ -283,28 +326,41 @@ function display() {
 
   gl.useProgram(ShaderProgramObject);
 
-  var modelViewMatrix = mat4.create();
-  var modelViewProjectionMatrix = mat4.create();
+  // Draw multiple cubes
+  var cubePositions = [
+    [0.0, 3.0, -12.0],
+    [3.0, 0.0, -8.0],
+    [-2.0, 0.0, -4.0],
+    [3.0, 4.0, -16.0],
+    [0.0, -3.0, -10.0],
+    [1.0, 1.0, -20.0],
+  ];
 
-  // Cube
-  mat4.translate(modelViewMatrix, modelViewMatrix, [0.0, 0.0, -6.0]);
-  mat4.scale(modelViewMatrix, modelViewMatrix, [0.75, 0.75, 0.75]);
-  mat4.rotateY(modelViewMatrix, modelViewMatrix, glMatrix.toRadian(cangle));
-  mat4.rotateX(modelViewMatrix, modelViewMatrix, glMatrix.toRadian(cangle));
-  mat4.rotateZ(modelViewMatrix, modelViewMatrix, glMatrix.toRadian(cangle));
-  mat4.multiply(
-    modelViewProjectionMatrix,
-    perspectiveProjectionMatrix,
-    modelViewMatrix
-  );
-  gl.uniformMatrix4fv(mvpMatrixUniform, false, modelViewProjectionMatrix);
-  gl.bindVertexArray(vao_Cube);
-  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-  gl.drawArrays(gl.TRIANGLE_FAN, 4, 4);
-  gl.drawArrays(gl.TRIANGLE_FAN, 8, 4);
-  gl.drawArrays(gl.TRIANGLE_FAN, 12, 4);
-  gl.drawArrays(gl.TRIANGLE_FAN, 16, 4);
-  gl.drawArrays(gl.TRIANGLE_FAN, 20, 4);
+  for (let i = 0; i < cubePositions.length; i++) {
+    var viewMatrix = GetCameraViewMatrix();
+    var translateMatrix = mat4.create();
+    var modelMatrix = mat4.create();
+    mat4.identity(modelMatrix);
+    var mvpMatrix = mat4.create();
+
+    // Cube
+    mat4.translate(translateMatrix, translateMatrix, cubePositions[i]);
+    mat4.multiply(modelMatrix, modelMatrix, translateMatrix);
+    mat4.scale(modelMatrix, modelMatrix, [0.75, 0.75, 0.75]);
+    mat4.rotateY(modelMatrix, modelMatrix, glMatrix.toRadian(cangle));
+    mat4.rotateX(modelMatrix, modelMatrix, glMatrix.toRadian(cangle));
+    mat4.rotateZ(modelMatrix, modelMatrix, glMatrix.toRadian(cangle));
+    mat4.multiply(mvpMatrix, perspectiveProjectionMatrix, viewMatrix);
+    mat4.multiply(mvpMatrix, mvpMatrix, modelMatrix);
+    gl.uniformMatrix4fv(mvpMatrixUniform, false, mvpMatrix);
+    gl.bindVertexArray(vao_Cube);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+    gl.drawArrays(gl.TRIANGLE_FAN, 4, 4);
+    gl.drawArrays(gl.TRIANGLE_FAN, 8, 4);
+    gl.drawArrays(gl.TRIANGLE_FAN, 12, 4);
+    gl.drawArrays(gl.TRIANGLE_FAN, 16, 4);
+    gl.drawArrays(gl.TRIANGLE_FAN, 20, 4);
+  }
   gl.bindVertexArray(null);
 
   gl.useProgram(null);
